@@ -42,4 +42,16 @@ async def send_news():
         except Exception as e:
             logging.error(f"Error sending message: {e}")
 
-async def sta
+async def start_bot():
+    await bot.start()
+    scheduler.add_job(send_news, "interval", minutes=2)
+    scheduler.start()
+    logging.info("Bot started and scheduler running.")
+    await idle()
+
+async def idle():
+    while True:
+        await asyncio.sleep(3600)
+
+if __name__ == "__main__":
+    asyncio.run(start_bot())
