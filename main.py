@@ -7,6 +7,9 @@ from config import API_ID, API_HASH, BOT_TOKEN, NEWS_API_KEY, TARGET_CHAT_ID
 
 # ✅ Import command handlers
 import commands
+import logging
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("pyrogram").setLevel(logging.WARNING)  # Only show warnings
 
 logging.basicConfig(level=logging.INFO)
 bot = Client("news_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
