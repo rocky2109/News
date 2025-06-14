@@ -5,20 +5,18 @@ from pyrogram import Client
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config import API_ID, API_HASH, BOT_TOKEN, NEWS_API_KEY, TARGET_CHAT_ID
 
-logging.basicConfig(level=logging.INFO)
+# ✅ Import command handlers
+import commands
 
+logging.basicConfig(level=logging.INFO)
 bot = Client("news_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 scheduler = AsyncIOScheduler()
 
 def get_latest_news():
-    url = (
-        f"https://newsapi.org/v2/top-headlines?"
-        f"country=in&apiKey={NEWS_API_KEY}"
-    )
+    url = f"https://newsapi.org/v2/top-headlines?country=in&apiKey={NEWS_API_KEY}"
     try:
         response = requests.get(url)
-        news_data = response.json()
-        articles = news_data.get("articles", [])[:5]
+        articles = response.json().get("articles", [])[:5]
         news_messages = []
 
         for article in articles:
