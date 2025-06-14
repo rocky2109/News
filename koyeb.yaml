@@ -1,0 +1,19 @@
+name: news-bot
+services:
+  - name: telegram-news
+    git:
+      branch: main
+      repository: github.com/yourusername/news-bot
+    envs:
+      - key: API_ID
+        value: "your_api_id"
+      - key: API_HASH
+        value: "your_api_hash"
+      - key: BOT_TOKEN
+        value: "your_bot_token"
+      - key: NEWS_API_KEY
+        value: "db677b89fa1843a5bf39d6681bed1405"
+      - key: TARGET_CHAT_ID
+        value: "your_channel_or_user_id"
+    run_command: python main.py
+    instance_type: micro
