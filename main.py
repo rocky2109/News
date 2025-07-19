@@ -18,6 +18,47 @@ logging.getLogger("pyrogram").setLevel(logging.WARNING)
 bot = Client("news_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 scheduler = AsyncIOScheduler()
 
+
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+@bot.on_message(filters.command("start") & filters.private)
+async def start_command(client, message):
+    user = message.from_user
+    await message.reply_photo(
+        photo="https://telegra.ph/file/e870b574fd3a87560a882.jpg",  # Optional banner image
+        caption=f"""<b>👋 Hello {user.mention}!
+
+🗞️ Welcome to the Auto News Bot!
+
+🔔 This bot automatically fetches and posts news updates every 30 minutes to your linked channel.
+
+✨ You can sit back and relax while we keep your audience updated with fresh content.</b>""",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("📰 Send Test News", callback_data="send_test_news")],
+            [InlineKeyboardButton("📊 Check Status", callback_data="check_status")],
+            [InlineKeyboardButton("📢 Updates Channel", url="https://t.me/YOUR_CHANNEL")],
+        ])
+    )
+@bot.on_callback_query()
+async def handle_buttons(client, callback_query):
+    data = callback_query.data
+
+    if data == "send_test_news":
+        news = get_latest_news()
+        for msg in news:
+            await callback_query.message.reply(msg)
+        await callback_query.answer("✅ Sent test news")
+
+    elif data == "check_status":
+        await callback_query.answer("✅ Bot is running & scheduler is active", show_alert=True)
+
+@bot.on_message(filters.command("help") & filters.private)
+async def help_command(client, message):
+    await message.reply(
+        "<b>🤖 Bot Commands:\n\n/start</b> – Show welcome panel\n<b>/help</b> – Show this help\n<b>/ping</b> – Check if bot is online"
+    )
+
+
 # Fetch latest news articles
 def get_latest_news() -> List[str]:
     url = f"https://newsapi.org/v2/top-headlines?country=in&apiKey={NEWS_API_KEY}"
@@ -53,16 +94,17 @@ def get_latest_news() -> List[str]:
 # Send news to the configured chat
 async def send_news():
     logging.info("Sending news...")
-    for msg in get_latest_news():
+    news = get_latest_news()
+    for msg in news:
         try:
-            await bot.send_message(
-                TARGET_CHAT_ID,
-                msg,
-                disable_web_page_preview=False,
-                parse_mode="html"
-            )
+            # Send to channel/group
+            await bot.send_message(TARGET_CHAT_ID, msg, disable_web_page_preview=False)
+            
+            # Send to bot owner’s PM
+            await bot.send_message(OWNER_ID, msg, disable_web_page_preview=False)
         except Exception as e:
             logging.error(f"Error sending message: {e}")
+
 
 # Idle loop to keep bot running
 async def idle():
