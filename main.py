@@ -1,92 +1,83 @@
 import os
-import requests
+import asyncio
+import pytz
+import logging
+import aiohttp
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from datetime import datetime
-import pytz
-from pyrogram.errors import PeerIdInvalid
 
-API_ID = int(os.environ.get("API_ID"))
-API_HASH = os.environ.get("API_HASH")
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-OWNER_ID = int(os.environ.get("OWNER_ID"))  # Your Telegram ID
-NEWS_CHANNEL = os.environ.get("NEWS_CHANNEL")  # Channel ID with -100 (as str)
-NEWS_API_KEY = os.environ.get("NEWS_API_KEY")
+# Logging
+logging.basicConfig(level=logging.INFO)
 
-app = Client("news_fetcher_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+# ENV Variables
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OWNER_ID = int(os.getenv("OWNER_ID"))  # Your Telegram user ID
+NEWS_API_KEY = os.getenv("NEWS_API_KEY")  # Add this to Koyeb env
+TARGET_CHANNEL = os.getenv("TARGET_CHANNEL")  # @yourchannelusername or channel ID
 
-def get_time():
-    ist = pytz.timezone("Asia/Kolkata")
-    return datetime.now(ist).strftime("%d-%m-%Y %I:%M %p")
+# India timezone
+india = pytz.timezone("Asia/Kolkata")
 
-@app.on_message(filters.command("start") & filters.private)
-async def start_cmd(client, message: Message):
-    await message.reply(
-        f"👋 Hello **{message.from_user.first_name}**!\n\n"
-        "📰 I'm a **News Feed Bot** that fetches top headlines every 2 minutes.\n\n"
-        "📡 News Source: [NewsAPI.org](https://newsapi.org)\n"
-        "🔔 You'll receive updates here and in the news channel.\n\n"
-        "**Use me in channels or check your feed here!**",
-        disable_web_page_preview=True
-    )
+# Bot client
+app = Client("news_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-async def fetch_and_send_news():
+# Fetch news
+async def fetch_news():
     try:
-        url = (
-            f"https://newsapi.org/v2/top-headlines?country=in&pageSize=1&apiKey={NEWS_API_KEY}"
-        )
-        response = requests.get(url)
-        data = response.json()
-
-        if response.status_code == 200 and data["articles"]:
-            article = data["articles"][0]
-            news_text = (
-                f"🗞️ <b>{article['title']}</b>\n\n"
-                f"📰 {article['description'] or ''}\n\n"
-                f"🔗 <a href='{article['url']}'>Read More</a>\n"
-                f"🕰️ {get_time()}"
-            )
-
-            # Send to channel
-            try:
-                await app.send_message(chat_id=int(NEWS_CHANNEL), text=news_text, parse_mode="html", disable_web_page_preview=False)
-            except PeerIdInvalid:
-                print("❌ Invalid channel ID or bot not admin!")
-
-            # Send to Owner
-            await app.send_message(chat_id=OWNER_ID, text=news_text, parse_mode="html", disable_web_page_preview=False)
-        else:
-            await app.send_message(OWNER_ID, text="❌ Failed to fetch news or no articles found.")
+        url = f"https://newsapi.org/v2/top-headlines?country=in&apiKey={NEWS_API_KEY}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                data = await resp.json()
+                if data["status"] != "ok":
+                    logging.warning("News API returned error.")
+                    return None
+                articles = data["articles"][:5]
+                news_text = "\n\n".join([f"📰 <b>{a['title']}</b>\n<a href='{a['url']}'>Read more</a>" for a in articles])
+                return f"<b>🗞️ Top Headlines (India):</b>\n\n{news_text}"
     except Exception as e:
-        await app.send_message(OWNER_ID, text=f"⚠️ Error occurred:\n<code>{str(e)}</code>", parse_mode="html")
+        logging.error(f"Error fetching news: {e}")
+        return None
 
-@app.on_message(filters.command("ping") & filters.user(OWNER_ID))
-async def ping(_, m):
-    await m.reply("✅ Bot is Alive!")
+# Send news every 2 mins
+async def send_news():
+    news = await fetch_news()
+    if news:
+        try:
+            await app.send_message(TARGET_CHANNEL, news, disable_web_page_preview=True)
+            logging.info("✅ News sent to channel.")
+        except Exception as e:
+            logging.error(f"Failed to send news: {e}")
 
-@app.on_message(filters.command("restart") & filters.user(OWNER_ID))
-async def restart(client, message):
-    await message.reply("♻️ Restarting...")
-    os.system("kill 1")
+# Start command
+@app.on_message(filters.command("start") & filters.private)
+async def start(_, m: Message):
+    await m.reply_text("👋 Hello! I am your automated Indian news bot.\n\nI will send top headlines to the configured channel every 2 minutes.")
 
-@app.on_message(filters.command("help") & filters.private)
-async def help_cmd(client, message: Message):
-    await message.reply("🆘 I fetch and send news every 2 minutes. That's all!")
+# Notify owner
+async def notify_owner():
+    try:
+        await app.send_message(OWNER_ID, "✅ Bot has started successfully and is fetching news every 2 minutes.")
+    except Exception as e:
+        logging.warning(f"Could not send message to owner: {e}")
 
-# Scheduler to run news every 2 minutes
-scheduler = AsyncIOScheduler()
-scheduler.add_job(fetch_and_send_news, "interval", minutes=2)
-scheduler.start()
+# Run app
+async def main():
+    await app.start()
+    await notify_owner()
 
-@app.on_message(filters.command("news") & filters.user(OWNER_ID))
-async def manual_fetch(_, m):
-    await fetch_and_send_news()
-    await m.reply("📩 News fetched and sent!")
+    scheduler = AsyncIOScheduler(timezone=india)
+    scheduler.add_job(send_news, "interval", minutes=2)
+    scheduler.start()
 
-# Start the bot
-@app.on_message(filters.command("start_bot"))
-async def notify_owner(_, __):
-    await app.send_message(OWNER_ID, "✅ Bot Started and News Auto Fetching Enabled!")
+    print("✅ Bot is running...")
+    await idle()
+    await app.stop()
 
-app.run()
+# Needed for idle() import
+from pyrogram.idle import idle
+
+if __name__ == "__main__":
+    asyncio.run(main())
