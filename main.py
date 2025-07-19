@@ -39,36 +39,76 @@ async def fetch_top_news():
         return []
 
 # 📢 Send news to channel
+import json
+import random
+from pyrogram import enums
+
+SENT_NEWS_FILE = "sent_news.json"
+EMOJIS = ["📰", "📢", "🗞️", "🧠", "📜", "🌐", "🔔", "✅", "📍", "🕘"]
+
+# Load previously sent URLs
+def load_sent_news():
+    try:
+        with open(SENT_NEWS_FILE, "r") as f:
+            return set(json.load(f))
+    except:
+        return set()
+
+# Save sent URLs
+def save_sent_news(sent_set):
+    with open(SENT_NEWS_FILE, "w") as f:
+        json.dump(list(sent_set), f)
+
+
 async def send_news():
+    sent_news = load_sent_news()
     news_items = await fetch_top_news()
     if not news_items:
         logger.warning("No news found.")
         return
 
+    count = 0
     for item in news_items:
+        url = item.get("url", "")
+        if url in sent_news:
+            continue  # Skip duplicates
+
         title = item.get("title", "No title").strip()
         description = item.get("text", "No description").strip()
-        url = item.get("url", "")
         source = item.get("source", "")
 
-        # Build full message
-        message = f"📰 <b>{title}</b>\n\n📜 {description}\n\n🔗 Source: <a href='{url}'>{source}</a>"
+        emoji = random.choice(EMOJIS)
+        message = f"{emoji} <b>{title}</b>\n\n📜 {description}\n\n🔗 <a href='{url}'>{source}</a>"
 
-        # If message too long, trim description
+        # Trim if too long
         if len(message) > 4096:
-            max_description_length = 4096 - len(f"📰 <b>{title}</b>\n\n📜 \n\n🔗 Source: <a href='{url}'>{source}</a>") - 10
-            description = description[:max_description_length] + "..."
-            message = f"📰 <b>{title}</b>\n\n📜 {description}\n\n🔗 Source: <a href='{url}'>{source}</a>"
+            max_len = 4096 - len(f"{emoji} <b>{title}</b>\n\n📜 \n\n🔗 <a href='{url}'>{source}</a>") - 10
+            description = description[:max_len] + "..."
+            message = f"{emoji} <b>{title}</b>\n\n📜 {description}\n\n🔗 <a href='{url}'>{source}</a>"
 
         try:
             await app.send_message(CHANNEL_ID, message, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
+            sent_news.add(url)
+            count += 1
         except Exception as e:
-            logger.error(f"❌ Failed to send news: {e}")
+            logger.error(f"❌ Failed to send: {e}")
+
+        if count >= 5:
+            break  # Send only top 5 highlights
+
+    save_sent_news(sent_news)
 
 
-# ⏰ Scheduler (every 2 minutes)
+
 scheduler = AsyncIOScheduler(timezone=pytz.timezone("Asia/Kolkata"))
+
+# 🔁 Every 3 hours (00:00, 03:00, 06:00, ..., 21:00 IST)
 scheduler.add_job(send_news, "interval", minutes=2)
+
+# 🕗 Daily at 8:00 PM IST
+scheduler.add_job(send_news, "cron", hour=20, minute=0)
+
+scheduler.start()
 
 # 👋 /start command
 @app.on_message(filters.command("start") & filters.private)
