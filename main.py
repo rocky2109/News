@@ -7,6 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import RPCError
+from pyrogram.types import Message, InputMediaPhoto
 
 # --- Config ---
 API_ID = int(os.environ.get("API_ID"))
