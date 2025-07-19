@@ -23,23 +23,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 bot = Client("news_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 scheduler = AsyncIOScheduler()
 
-# --- /start command ---
-@bot.on_message(filters.command("start") & filters.private)
-async def start_command(client, message):
-    user = message.from_user
-    await message.reply_photo(
-        photo="https://freeimage.host/i/Fh3c7rxhttps://freeimage.host/i/Fjc6F9fhttps://freeimage.host/i/FjUxN1a",
-        caption=f"""<b>👋 Hello {user.mention}!\n\n🗞️ Welcome to the Auto News Bot!
+from pyrogram import Client, filters
 
-🔔 This bot automatically fetches and posts news updates every 2 minutes to your linked channel.
+@app.on_message(filters.command("start"))
+async def start_handler(client, message):
+    await message.reply_text("✅ Bot is alive.")
 
-✨ You can sit back and relax while we keep your audience updated.</b>""",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("📰 Send Test News", callback_data="send_test_news")],
-            [InlineKeyboardButton("📊 Check Status", callback_data="check_status")],
-            [InlineKeyboardButton("📢 Updates Channel", url="https://t.me/YOUR_CHANNEL")],
-        ])
-    )
 
 # --- Help command ---
 @bot.on_message(filters.command("help") & filters.private)
