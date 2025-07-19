@@ -28,7 +28,7 @@ scheduler = AsyncIOScheduler()
 async def start_command(client, message):
     user = message.from_user
     await message.reply_photo(
-        photo="https://telegra.ph/file/e870b574fd3a87560a882.jpg",
+        photo="https://freeimage.host/i/Fh3c7rxhttps://freeimage.host/i/Fjc6F9fhttps://freeimage.host/i/FjUxN1a",
         caption=f"""<b>👋 Hello {user.mention}!\n\n🗞️ Welcome to the Auto News Bot!
 
 🔔 This bot automatically fetches and posts news updates every 2 minutes to your linked channel.
