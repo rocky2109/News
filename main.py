@@ -24,26 +24,25 @@ NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 app = Client("newsbot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 # Function to fetch news
-def fetch_top_news():
-    url = f"https://newsapi.org/v2/top-headlines?country=in&apiKey={NEWS_API_KEY}"
-    try:
-        response = requests.get(url)
-        data = response.json()
-        articles = data.get("articles", [])
-        if not articles:
-            return "No news found at the moment."
+def get_news():
+    url = f"https://newsapi.org/v2/top-headlines?country=in&pageSize=5&apiKey={NEWS_API_KEY}"
+    response = requests.get(url)
+    if response.status_code != 200:
+        return "Failed to fetch news."
 
-        top_article = articles[0]
-        title = top_article.get("title", "No title")
-        description = top_article.get("description", "No description")
-        url_link = top_article.get("url", "")
+    data = response.json()
+    articles = data.get("articles")
 
-        message = f"📰 *Top News*\n\n{title}\n\n{description}\n\nRead more: {url_link}"
-        return message
+    if not articles:
+        return "No news found at the moment."
 
-    except Exception as e:
-        logger.error(f"Failed to fetch news: {e}")
-        return "⚠️ Unable to fetch news at the moment."
+    news_texts = []
+    for article in articles:
+        title = article.get("title", "No Title")
+        url = article.get("url", "")
+        news_texts.append(f"{title}\n{url}")
+
+    return "\n\n".join(news_texts)
 
 # Send news every 2 minutes
 async def send_news():
