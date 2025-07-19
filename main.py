@@ -102,8 +102,6 @@ async def send_news():
 
 scheduler = AsyncIOScheduler(timezone=pytz.timezone("Asia/Kolkata"))
 scheduler.add_job(send_news, "interval", minutes=2)
-scheduler.start()
-
 
 # 👋 /start command
 @app.on_message(filters.command("start") & filters.private)
