@@ -18,40 +18,42 @@ API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID"))
 CHANNEL_ID = os.getenv("CHANNEL_ID")  # e.g., -100xxxxxxxxxx
-NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+#NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 
 # Create Pyrogram bot
 app = Client("newsbot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 # Function to fetch news
-def get_news():
-    url = f"https://newsapi.org/v2/top-headlines?country=in&pageSize=5&apiKey={NEWS_API_KEY}"
-    response = requests.get(url)
-    if response.status_code != 200:
-        return "Failed to fetch news."
+import aiohttp
 
-    data = response.json()
-    articles = data.get("articles")
+WORLD_NEWS_API_KEY = os.getenv("WORLD_NEWS_API_KEY")  # Set this in Koyeb env
 
-    if not articles:
-        return "No news found at the moment."
+async def fetch_top_news():
+    url = f"https://api.worldnewsapi.com/search-news?text=india&number=5&language=en&api-key={WORLD_NEWS_API_KEY}"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                return []
+            data = await resp.json()
+            return data.get("news", [])
 
-    news_texts = []
-    for article in articles:
-        title = article.get("title", "No Title")
-        url = article.get("url", "")
-        news_texts.append(f"{title}\n{url}")
-
-    return "\n\n".join(news_texts)
 
 # Send news every 2 minutes
 async def send_news():
-    news = get_news()
-    try:
-        await app.send_message(chat_id=int(CHANNEL_ID), text=news)
-        await app.send_message(chat_id=int(OWNER_ID), text=f"✅ News sent:\n\n{news}")
-    except Exception as e:
-        logger.error(f"Error sending news: {e}")
+    news_items = await fetch_top_news()
+    if not news_items:
+        print("No news found.")
+        return
+
+    text = "🗞️ <b>Top News:</b>\n\n"
+    for item in news_items:
+        title = item.get("title")
+        url = item.get("url")
+        source = item.get("source")
+        text += f"• <a href='{url}'>{title}</a> ({source})\n"
+
+    await app.send_message(CHANNEL_ID, text)
+
 
 # Start scheduler
 scheduler = AsyncIOScheduler(timezone=pytz.timezone("Asia/Kolkata"))
