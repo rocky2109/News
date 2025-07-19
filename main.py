@@ -8,43 +8,38 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
-# Configure logging
+# Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load environment variables
+# Env variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 OWNER_ID = int(os.getenv("OWNER_ID"))
-CHANNEL_ID = int(os.getenv("CHANNEL_ID"))  # Must be int
+CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 
-# Set timezone
+# Timezone
 INDIAN_TZ = timezone("Asia/Kolkata")
 
-# Pyrogram bot instance
+# Pyrogram bot client
 app = Client("NewsBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# Scheduler instance
-scheduler = AsyncIOScheduler(timezone=INDIAN_TZ)
-
-# Fetch latest news
+# Function to fetch news
 def fetch_latest_news():
     try:
-        res = requests.get(
-            f"https://newsapi.org/v2/top-headlines?country=in&apiKey={NEWS_API_KEY}"
-        )
+        res = requests.get(f"https://newsapi.org/v2/top-headlines?country=in&apiKey={NEWS_API_KEY}")
         data = res.json()
         if data["status"] == "ok" and data["articles"]:
             article = data["articles"][0]
             return f"📰 <b>{article['title']}</b>\n\n{article.get('description', '')}\n\n🔗 {article['url']}"
         return None
     except Exception as e:
-        logger.error(f"News fetch error: {e}")
+        logger.error(f"❌ Error fetching news: {e}")
         return None
 
-# Job to send news
+# News sending job
 async def send_news():
     news = fetch_latest_news()
     if news:
@@ -63,19 +58,18 @@ async def start_handler(_, message: Message):
         "👋 Welcome!\nI'm your automated 🇮🇳 Indian News Bot.\nI’ll keep you updated with top headlines every 2 minutes!"
     )
 
+# Run bot
 async def main():
     await app.start()
-    await app.send_message(OWNER_ID, "✅ Bot is running with scheduler.")
+    await app.send_message(OWNER_ID, "🤖 Bot has started and scheduler is running!")
+
+    # Scheduler must be started inside event loop
+    scheduler = AsyncIOScheduler(timezone=INDIAN_TZ)
     scheduler.add_job(send_news, "interval", minutes=2)
     scheduler.start()
-    
-    # Keep the bot running
-    try:
-        while True:
-            await asyncio.sleep(1)
-    except (KeyboardInterrupt, SystemExit):
-        scheduler.shutdown()
-        await app.stop()
+
+    print("✅ Bot and scheduler running...")
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
     asyncio.run(main())
