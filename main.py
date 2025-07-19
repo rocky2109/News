@@ -25,37 +25,31 @@ app = Client("newsbot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 # 🔍 Function to fetch top news using World News API
 async def fetch_top_news():
-    url = f"https://api.worldnewsapi.com/search-news?text=india&number=5&language=en&api-key={WORLD_NEWS_API_KEY}"
+    url = f"https://api.worldnewsapi.com/search-news?text=ભારત&number=5&language=gu&api-key={WORLD_NEWS_API_KEY}"
     async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    logger.warning(f"Failed to fetch news: Status {resp.status}")
-                    return []
-                data = await resp.json()
-                return data.get("news", [])
-        except Exception as e:
-            logger.error(f"Error fetching news: {e}")
-            return []
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                return []
+            data = await resp.json()
+            return data.get("news", [])
+
 
 # 📰 Send news every 2 minutes to CHANNEL
 async def send_news():
     news_items = await fetch_top_news()
     if not news_items:
-        print("No news found.")
+        logger.warning("No news found.")
         return
 
-    text = "🗞️ <b>Top News:</b>\n\n"
     for item in news_items:
-        title = item.get("title")
-        url = item.get("url")
-        source = item.get("source")
-        text += f"• <a href='{url}'>{title}</a> ({source})\n"
+        title = item.get("title", "No title")
+        description = item.get("text", "No description")
+        url = item.get("url", "")
+        source = item.get("source", "")
 
-    try:
-        await app.send_message(CHANNEL_ID, text, disable_web_page_preview=True)
-    except Exception as e:
-        logger.error(f"Failed to send news: {e}")
+        message = f"📰 <b>{title}</b>\n\n📜 {description}\n\n🔗 Source: <a href='{url}'>{source}</a>"
+        await app.send_message(CHANNEL_ID, message, parse_mode="HTML", disable_web_page_preview=True)
+
 
 # Scheduler (every 2 minutes)
 scheduler = AsyncIOScheduler(timezone=pytz.timezone("Asia/Kolkata"))
