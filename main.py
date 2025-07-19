@@ -25,10 +25,81 @@ scheduler = AsyncIOScheduler()
 
 from pyrogram import Client, filters
 
-@app.on_message(filters.command("start"))
-async def start_handler(client, message):
-    await message.reply_text("✅ Bot is alive.")
+@bot.on_message(filters.command("start") & (filters.private | filters.group | filters.channel))
+async def start(bot, m: Message):
+    # Support anonymous admins or channels
+    user_name = (
+        m.from_user.first_name if m.from_user
+        else m.sender_chat.title if m.sender_chat
+        else "User"
+    )
+    sender_id = (
+        m.from_user.id if m.from_user
+        else m.sender_chat.id if m.sender_chat
+        else m.chat.id
+    )
 
+    start_message = await bot.send_message(
+        m.chat.id,
+        f">**Hey 💖 {user_name}!** 👑\n\n"
+    )
+
+    await asyncio.sleep(1)
+    await start_message.edit_text(
+        f">**🦋 Welcome {user_name}!** 🦋\n\n" +
+        f"Initializing Uploader bot... 🤖\n\n"
+        f"Progress:\n 🤍🤍🤍🤍🤍🤍🤍🤍🤍🤍 0%\n\n"
+    )
+
+    await asyncio.sleep(1)
+    await start_message.edit_text(
+        f">🦋** Welcome {user_name}!**🦋\n\n" +
+        f"Loading features... ⏳\n\n"
+        f"Progress:\n ❤️❤️❤️🤍🤍🤍🤍🤍🤍🤍 25%\n\n"
+    )
+    
+    await asyncio.sleep(1)
+    await start_message.edit_text(
+        f"> 🦋 ** Welcome {user_name}!** 🦋\n\n" +
+        f"This may take a moment 😉\n\n"
+        f"Progress:\n 🧡🧡🧡🧡🧡🤍🤍🤍🤍🤍 50%\n\n"
+    )
+
+    await asyncio.sleep(1)
+    await start_message.edit_text(
+        f">🦋 **Welcome {user_name}!** 🦋\n\n" +
+        f"Checking subscription status... 🔍\n\n"
+        f"Progress:\n 💛💛💛💛💛💛💛💛🤍🤍 75%\n\n"
+    )
+
+    await asyncio.sleep(1)
+    await start_message.edit_text(
+        f">🦋 **Welcome {user_name}!** 🦋\n\n" +
+        f"Verifying access... 🔓\n\n"
+        f"Progress:\n 💚💚💚💚💚💚💚💚💚💚 100%\n\n"
+    )
+
+
+    await asyncio.sleep(2)
+    if m.chat.id in AUTH_USERS:
+        await start_message.edit_text(
+            f"✅ Access Granted 😉\n\n"
+            f">👑 **Hey {m.from_user.first_name}!** \n\n"
+            f"💎 You are an <b>Authorized User Cutie</b> 😘\n\n"
+            f"➠ Use /xtract to extract from .txt (Auto 🚀)\n\n"
+            f"➠ Use /help for full guide 📖\n\n"
+            f">Creator: [𝗖𝗛𝗢𝗦𝗘𝗡 𝗢𝗡𝗘 ⚝](http://t.me/CHOSEN_ONEx_bot)\n", disable_web_page_preview=True, reply_markup=BUTTONSCONTACT
+        )
+        
+    else:
+        await asyncio.sleep(2)
+        await start_message.edit_text(
+            f"> Hey Dear {m.from_user.first_name}!\n\n"
+            f"thanks for being with us 😊\n\n"
+            f"➠ Use /xtract to extract from .txt (Auto 🚀)\n"
+            f"➠ Use /help for full guide 📖\n\n"            
+            f">Creator: [𝗖𝗛𝗢𝗦𝗘𝗡 𝗢𝗡𝗘 ⚝](http://t.me/CHOSEN_ONEx_bot)\n", disable_web_page_preview=True, reply_markup=BUTTONSCONTACT
+        )
 
 # --- Help command ---
 @bot.on_message(filters.command("help") & filters.private)
