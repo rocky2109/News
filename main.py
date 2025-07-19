@@ -6,6 +6,7 @@ from pyrogram import Client
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config import API_ID, API_HASH, BOT_TOKEN, NEWS_API_KEY, TARGET_CHAT_ID
 from commands import register_commands
+from pyrogram import filters
 
 # Configure logging
 logging.basicConfig(
