@@ -46,7 +46,7 @@ def get_news():
 
 # Send news every 2 minutes
 async def send_news():
-    news = fetch_top_news()
+    news = get_news()
     try:
         await app.send_message(chat_id=int(CHANNEL_ID), text=news)
         await app.send_message(chat_id=int(OWNER_ID), text=f"✅ News sent:\n\n{news}")
