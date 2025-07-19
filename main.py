@@ -1,59 +1,38 @@
-import asyncio
-import logging
-import requests
 import os
+import logging
+import asyncio
+import requests
 from typing import List
+from pyrogram import Client, filters
+from pyrogram.types import (
+    Message,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from pyrogram.errors import RPCError
-from pyrogram.types import Message, InputMediaPhoto
 
-# --- Config ---
-API_ID = int(os.environ.get("API_ID"))
-API_HASH = os.environ.get("API_HASH")
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-NEWS_API_KEY = os.environ.get("NEWS_API_KEY")
-TARGET_CHAT_ID = int(os.environ.get("TARGET_CHAT_ID"))
-OWNER_ID = int(os.environ.get("OWNER_ID"))
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# --- Logging ---
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# Environment Variables (from Render or .env)
+API_ID = int(os.environ.get("API_ID", ""))
+API_HASH = os.environ.get("API_HASH", "").strip().replace('"', '')
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip().replace('"', '')
+NEWS_API_KEY = os.environ.get("NEWS_API_KEY", "").strip().replace('"', '')
+TARGET_CHAT_ID = int(os.environ.get("TARGET_CHAT_ID", ""))
+OWNER_ID = int(os.environ.get("OWNER_ID", ""))
 
-# --- Initialize bot and scheduler ---
-bot = Client("news_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-scheduler = AsyncIOScheduler()
+# Optional extras
+AUTH_USERS = [OWNER_ID]
+BUTTONSCONTACT = InlineKeyboardMarkup(
+    [[InlineKeyboardButton("Creator 👑", url="http://t.me/CHOSEN_ONEx_bot")]]
+)
 
-from pyrogram import Client, filters
+# Pyrogram Client
+app = Client("newsbot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-from pyrogram.types import Message
 
-@bot.on_message(filters.command("start"))
-async def start(bot, m: Message):
-    await m.reply_text("👋 Hello! Welcome to the News Bot.")
-
-# --- Help command ---
-@bot.on_message(filters.command("help") & filters.private)
-async def help_command(client, message):
-    await message.reply(
-        "<b>🤖 Bot Commands:\n/start</b> – Show welcome panel\n<b>/help</b> – Show help\n<b>/ping</b> – Check online status"
-    )
-
-# --- Button callbacks ---
-@bot.on_callback_query()
-async def handle_buttons(client, callback_query):
-    data = callback_query.data
-
-    if data == "send_test_news":
-        news = get_latest_news()
-        for msg in news:
-            await callback_query.message.reply(msg)
-        await callback_query.answer("✅ Sent test news")
-
-    elif data == "check_status":
-        await callback_query.answer("✅ Bot is running & scheduler is active", show_alert=True)
-
-# --- Fetch news ---
 def get_latest_news() -> List[str]:
     url = f"https://newsapi.org/v2/top-headlines?country=in&apiKey={NEWS_API_KEY}"
     headers = {"User-Agent": "TelegramNewsBot/1.0"}
@@ -62,45 +41,55 @@ def get_latest_news() -> List[str]:
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         articles = response.json().get("articles", [])[:5]
+        if not articles:
+            raise Exception("No articles found in response.")
         return [
             f"📰 <b>{a.get('title')}</b>\n\n{a.get('description')}\n🔗 <a href='{a.get('url')}'>Read More</a>"
             for a in articles
         ]
     except Exception as e:
-        logging.error(f"Error fetching news: {e}")
+        logger.error(f"Error fetching news: {e} | URL used: {url}")
         return ["❌ Failed to fetch news."]
 
-# --- Send news job ---
+
 async def send_news():
-    logging.info("Sending news...")
-    news = get_latest_news()
-    for msg in news:
+    news_items = get_latest_news()
+    for news in news_items:
         try:
-            await bot.send_message(TARGET_CHAT_ID, msg, disable_web_page_preview=False)
-            await bot.send_message(OWNER_ID, msg, disable_web_page_preview=False)
+            await app.send_message(chat_id=TARGET_CHAT_ID, text=news, parse_mode="html", disable_web_page_preview=False)
+            await app.send_message(chat_id=OWNER_ID, text=news, parse_mode="html", disable_web_page_preview=False)
         except Exception as e:
-            logging.error(f"Error sending news: {e}")
+            logger.error(f"Error sending news: {e}")
 
-# --- Notify owner on restart ---
-async def notify_owner():
-    try:
-        await bot.send_message(chat_id=OWNER_ID, text="✅ Bot restarted and is now running.")
-    except RPCError as e:
-        logging.error(f"Failed to notify owner: {e}")
 
-# --- Start everything ---
-async def main():
-    await bot.start()
-    await notify_owner()
-    scheduler.add_job(send_news, "interval", minutes=2)
-    scheduler.start()
-    logging.info("Bot started. Scheduler is running.")
-    await idle()
+@app.on_message(filters.command("start") & filters.private)
+async def start(_, m: Message):
+    user = m.from_user
+    welcome_text = (
+        f"👋 Hello, <b>{user.first_name}</b>!\n\n"
+        "📢 This bot sends the latest news updates every 2 minutes.\n"
+        "📰 Stay updated with top headlines from India!\n\n"
+        "✅ You will receive the news directly in your PM or a channel.\n\n"
+        "✨ Powered by <b>NewsAPI</b> & Pyrogram."
+    )
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📨 Contact Owner", url="https://t.me/CHOSEN_ONEx_bot")],
+        [InlineKeyboardButton("🌐 Visit NewsAPI", url="https://newsapi.org/")]
+    ])
+    await m.reply_text(welcome_text, reply_markup=buttons, parse_mode="html")
 
-# --- Run bot ---
-async def idle():
-    while True:
-        await asyncio.sleep(3600)
 
+# Schedule the news sending job
+scheduler = AsyncIOScheduler()
+scheduler.add_job(send_news, "interval", minutes=2)
+scheduler.start()
+
+# Notify on startup
+@app.on_message(filters.command("restart") & filters.user(AUTH_USERS))
+async def restart_msg(_, m: Message):
+    await m.reply("🔄 Bot Restarted and Scheduler is Running!")
+
+# Start the bot
 if __name__ == "__main__":
-    asyncio.run(main())
+    logger.info("🤖 Bot started. Scheduler initialized.")
+    app.run()
