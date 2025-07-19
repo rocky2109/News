@@ -26,17 +26,20 @@ INDIAN_TZ = timezone("Asia/Kolkata")
 # Pyrogram bot client
 app = Client("NewsBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# Function to fetch news
+# Function to fetch latest news
 def fetch_latest_news():
     try:
         res = requests.get(f"https://newsapi.org/v2/top-headlines?country=in&apiKey={NEWS_API_KEY}")
         data = res.json()
         if data["status"] == "ok" and data["articles"]:
             article = data["articles"][0]
-            return f"📰 <b>{article['title']}</b>\n\n{article.get('description', '')}\n\n🔗 {article['url']}"
+            title = article.get("title", "No Title")
+            description = article.get("description", "")
+            url = article.get("url", "")
+            return f"📰 {title}\n\n{description}\n\nLink: {url}"
         return None
     except Exception as e:
-        logger.error(f"❌ Error fetching news: {e}")
+        logger.error(f"Error fetching news: {e}")
         return None
 
 # News sending job
@@ -44,31 +47,30 @@ async def send_news():
     news = fetch_latest_news()
     if news:
         try:
-            await app.send_message(CHANNEL_ID, news, parse_mode="html", disable_web_page_preview=True)
-            await app.send_message(OWNER_ID, f"✅ News sent:\n\n{news}", parse_mode="html", disable_web_page_preview=True)
+            await app.send_message(CHANNEL_ID, news, disable_web_page_preview=True)
+            await app.send_message(OWNER_ID, f"News sent:\n\n{news}", disable_web_page_preview=True)
         except Exception as e:
-            await app.send_message(OWNER_ID, f"❌ Failed to send news:\n{e}")
+            await app.send_message(OWNER_ID, f"Failed to send news:\n{e}")
     else:
-        await app.send_message(OWNER_ID, "❌ No news fetched.")
+        await app.send_message(OWNER_ID, "No news fetched.")
 
 # /start command
 @app.on_message(filters.command("start") & filters.private)
 async def start_handler(_, message: Message):
     await message.reply(
-        "👋 Welcome!\nI'm your automated 🇮🇳 Indian News Bot.\nI’ll keep you updated with top headlines every 2 minutes!"
+        "Hello!\nI'm your automated Indian News Bot.\nI’ll keep you updated with top headlines every 2 minutes!"
     )
 
 # Run bot
 async def main():
     await app.start()
-    await app.send_message(OWNER_ID, "🤖 Bot has started and scheduler is running!")
+    await app.send_message(OWNER_ID, "Bot started and news scheduler is active!")
 
-    # Scheduler must be started inside event loop
+    # Scheduler in event loop
     scheduler = AsyncIOScheduler(timezone=INDIAN_TZ)
     scheduler.add_job(send_news, "interval", minutes=2)
     scheduler.start()
 
-    print("✅ Bot and scheduler running...")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
