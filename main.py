@@ -1,95 +1,75 @@
 import os
-import logging
 import asyncio
+from datetime import datetime
+import pytz
 import requests
-from typing import List
 from pyrogram import Client, filters
-from pyrogram.types import (
-    Message,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup
-)
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from pyrogram.types import Message
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Set timezone to India
+IST = pytz.timezone("Asia/Kolkata")
 
-# Environment Variables (from Render or .env)
-API_ID = int(os.environ.get("API_ID", ""))
-API_HASH = os.environ.get("API_HASH", "").strip().replace('"', '')
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip().replace('"', '')
-NEWS_API_KEY = os.environ.get("NEWS_API_KEY", "").strip().replace('"', '')
-TARGET_CHAT_ID = int(os.environ.get("TARGET_CHAT_ID", ""))
-OWNER_ID = int(os.environ.get("OWNER_ID", ""))
+# Environment variables
+API_ID = int(os.environ.get("API_ID"))
+API_HASH = os.environ.get("API_HASH")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+NEWS_CHANNEL = os.environ.get("NEWS_CHANNEL")  # e.g., -1001234567890
 
-# Optional extras
-AUTH_USERS = [OWNER_ID]
-BUTTONSCONTACT = InlineKeyboardMarkup(
-    [[InlineKeyboardButton("Creator 👑", url="http://t.me/CHOSEN_ONEx_bot")]]
-)
-
-# Pyrogram Client
-app = Client("newsbot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-
-
-def get_latest_news() -> List[str]:
-    url = f"https://newsapi.org/v2/top-headlines?country=in&apiKey={NEWS_API_KEY}"
-    headers = {"User-Agent": "TelegramNewsBot/1.0"}
-
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        articles = response.json().get("articles", [])[:5]
-        if not articles:
-            raise Exception("No articles found in response.")
-        return [
-            f"📰 <b>{a.get('title')}</b>\n\n{a.get('description')}\n🔗 <a href='{a.get('url')}'>Read More</a>"
-            for a in articles
-        ]
-    except Exception as e:
-        logger.error(f"Error fetching news: {e} | URL used: {url}")
-        return ["❌ Failed to fetch news."]
-
-
-async def send_news():
-    news_items = get_latest_news()
-    for news in news_items:
-        try:
-            await app.send_message(chat_id=TARGET_CHAT_ID, text=news, parse_mode="html", disable_web_page_preview=False)
-            await app.send_message(chat_id=OWNER_ID, text=news, parse_mode="html", disable_web_page_preview=False)
-        except Exception as e:
-            logger.error(f"Error sending news: {e}")
+# Pyrogram app
+app = Client("news_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 
 @app.on_message(filters.command("start") & filters.private)
-async def start(_, m: Message):
-    user = m.from_user
-    welcome_text = (
-        f"👋 Hello, <b>{user.first_name}</b>!\n\n"
-        "📢 This bot sends the latest news updates every 2 minutes.\n"
-        "📰 Stay updated with top headlines from India!\n\n"
-        "✅ You will receive the news directly in your PM or a channel.\n\n"
-        "✨ Powered by <b>NewsAPI</b> & Pyrogram."
+async def start_command(client: Client, message: Message):
+    await message.reply_photo(
+        photo="https://te.legra.ph/file/4d5e189f3d661fac9bfc6.jpg",
+        caption="""
+👋 <b>Welcome to the Daily News Bot!</b>
+
+📰 Get the latest technology headlines every 2 minutes (for testing).
+
+⚙️ This bot automatically posts tech news in the linked channel.
+        """,
     )
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📨 Contact Owner", url="https://t.me/CHOSEN_ONEx_bot")],
-        [InlineKeyboardButton("🌐 Visit NewsAPI", url="https://newsapi.org/")]
-    ])
-    await m.reply_text(welcome_text, reply_markup=buttons, parse_mode="html")
 
 
-# Schedule the news sending job
-scheduler = AsyncIOScheduler()
-scheduler.add_job(send_news, "interval", minutes=2)
-scheduler.start()
+async def fetch_and_send_news():
+    while True:
+        try:
+            url = "https://inshortsapi.vercel.app/news?category=technology"
+            response = requests.get(url)
+            data = response.json()
 
-# Notify on startup
-@app.on_message(filters.command("restart") & filters.user(AUTH_USERS))
-async def restart_msg(_, m: Message):
-    await m.reply("🔄 Bot Restarted and Scheduler is Running!")
+            if data.get("success") and "data" in data:
+                articles = data["data"][:1]  # Send only the latest 1 article
+                for article in articles:
+                    time_now = datetime.now(IST).strftime("%d-%m-%Y %I:%M %p")
+                    text = f"""
+<b>📰 {article['title']}</b>
 
-# Start the bot
+{article['content']}
+
+🕒 {time_now}
+🔗 {article.get('readMoreUrl', 'N/A')}
+"""
+                    await app.send_photo(chat_id=NEWS_CHANNEL, photo=article["imageUrl"], caption=text)
+                    print(f"✅ Sent news at {time_now}")
+            else:
+                await app.send_message(chat_id=NEWS_CHANNEL, text="❌ Failed to fetch news from API.")
+
+        except Exception as e:
+            error_time = datetime.now(IST).strftime("%d-%m-%Y %I:%M %p")
+            await app.send_message(chat_id=NEWS_CHANNEL, text=f"⚠️ Error at {error_time}:\n{e}")
+            print(f"❌ Error: {e}")
+
+        await asyncio.sleep(120)  # 2 minutes
+
+
+async def main():
+    await app.start()
+    print("✅ Bot started.")
+    await fetch_and_send_news()
+
+
 if __name__ == "__main__":
-    logger.info("🤖 Bot started. Scheduler initialized.")
-    app.run()
+    asyncio.run(main())
