@@ -63,13 +63,19 @@ async def start_handler(_, message: Message):
         "👋 Welcome!\nI'm your automated 🇮🇳 Indian News Bot.\nI’ll keep you updated with top headlines every 2 minutes!"
     )
 
-# Main async entry
-async def run():
+async def main():
     await app.start()
     await app.send_message(OWNER_ID, "✅ Bot is running with scheduler.")
     scheduler.add_job(send_news, "interval", minutes=2)
     scheduler.start()
-    await asyncio.Event().wait()
+    
+    # Keep the bot running
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except (KeyboardInterrupt, SystemExit):
+        scheduler.shutdown()
+        await app.stop()
 
 if __name__ == "__main__":
-    asyncio.run(run())
+    asyncio.run(main())
