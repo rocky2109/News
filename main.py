@@ -78,6 +78,7 @@ async def main():
     await idle()
     await app.stop()
 
-from pyrogram.idle import idle
+from pyrogram import idle
+
 if __name__ == "__main__":
     asyncio.run(main())
