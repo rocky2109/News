@@ -1,3 +1,4 @@
+await app.send_message(CHANNEL_ID, message, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
 import os
 import asyncio
 import logging
@@ -48,7 +49,7 @@ async def send_news():
         source = item.get("source", "")
 
         message = f"📰 <b>{title}</b>\n\n📜 {description}\n\n🔗 Source: <a href='{url}'>{source}</a>"
-        await app.send_message(CHANNEL_ID, message, parse_mode="HTML", disable_web_page_preview=True)
+        await app.send_message(CHANNEL_ID, message, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
 
 
 # Scheduler (every 2 minutes)
