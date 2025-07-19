@@ -37,21 +37,37 @@ async def fetch_top_news():
 
 # 📰 Send news every 2 minutes to CHANNEL
 async def send_news():
-    news_items = await fetch_top_news()
-    if not news_items:
-        logger.warning("No news found.")
-        return
+    try:
+        news_items = await fetch_top_news()
+        if not news_items:
+            logger.warning("No news found.")
+            return
 
-    for item in news_items:
-        title = item.get("title", "No title")
-        description = item.get("text", "No description")
-        url = item.get("url", "")
-        source = item.get("source", "")
+        for item in news_items:
+            title = item.get("title", "No title")
+            description = item.get("text", "No description")
+            url = item.get("url", "")
+            source = item.get("source", "News Source")
 
-        message = f"📰 <b>{title}</b>\n\n📜 {description}\n\n🔗 Source: <a href='{url}'>{source}</a>"
-        await app.send_message(CHANNEL_ID, message, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
+            # Escape any illegal characters for HTML parse_mode
+            safe_title = title.replace("<", "&lt;").replace(">", "&gt;")
+            safe_description = description.replace("<", "&lt;").replace(">", "&gt;")
+            safe_source = source.replace("<", "&lt;").replace(">", "&gt;")
 
+            message = (
+                f"📰 <b>{safe_title}</b>\n\n"
+                f"📜 {safe_description}\n\n"
+                f"🔗 Source: <a href='{url}'>{safe_source}</a>"
+            )
 
+            await app.send_message(
+                CHANNEL_ID,
+                message,
+                parse_mode=enums.ParseMode.HTML,
+                disable_web_page_preview=True
+            )
+    except Exception as e:
+        logger.error(f"❌ Error in send_news(): {e}")
 # Scheduler (every 2 minutes)
 scheduler = AsyncIOScheduler(timezone=pytz.timezone("Asia/Kolkata"))
 scheduler.add_job(send_news, "interval", minutes=2)
