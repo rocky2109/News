@@ -1,84 +1,88 @@
 import os
 import asyncio
-import pytz
 import requests
-from datetime import datetime
 from pyrogram import Client, filters
-from pyrogram.types import Message
+from datetime import datetime
+import pytz
 
-# Load from .env if needed
-NEWS_CHANNEL = int(os.getenv("NEWS_CHANNEL", "-100XXXXXXXXXX"))  # Replace or set via environment
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-API_ID = int(os.getenv("API_ID", "12345"))
-API_HASH = os.getenv("API_HASH", "your_api_hash")
+API_ID = int(os.environ.get("API_ID"))
+API_HASH = os.environ.get("API_HASH")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+OWNER_ID = int(os.environ.get("OWNER_ID"))
+NEWS_CHANNEL = os.environ.get("NEWS_CHANNEL")  # Can be username or channel ID
 
-# IST timezone
-IST = pytz.timezone("Asia/Kolkata")
+# Auto-convert channel ID if it's int string
+try:
+    if NEWS_CHANNEL.startswith("-100"):
+        NEWS_CHANNEL = int(NEWS_CHANNEL)
+except:
+    pass
 
-# Initialize bot
-app = Client("newsbot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+app = Client("news_fetcher_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# /start command
+# Custom /start message
 @app.on_message(filters.command("start") & filters.private)
-async def start_cmd(client, message: Message):
-    await message.reply_text(
-        "**📰 Welcome to the NewsBot!**\n\n"
-        "This bot auto-posts news headlines to a channel.\n"
-        "Check back soon for updates. 😊",
-        quote=True
+async def start(client, message):
+    await message.reply_photo(
+        photo="https://telegra.ph/file/7cf2be234fca9bb6d33c7.jpg",  # Replace with your own
+        caption=f"""<b>📰 Welcome to the Indian News Bot 🇮🇳</b>
+
+This bot fetches live trending news headlines every few minutes and posts them to your configured Telegram channel.
+
+➕ Stay updated with national & international stories in real-time.
+
+<b>🛠 Maintained by:</b> <a href="tg://user?id={OWNER_ID}">Owner</a>""",
+        reply_markup=None
     )
 
-# Function to fetch and post news
+# News fetch + send function
 async def fetch_and_send_news():
     while True:
         try:
-            now = datetime.now(IST).strftime("%d-%m-%Y %I:%M %p")
+            print("⏳ Fetching news...")
+            url = "https://newsapi.org/v2/top-headlines?country=in&apiKey=0730e33a5fe740799cc6350667db3c4e"
+            response = requests.get(url)
 
-            # Replace this URL with your real API
-            response = requests.get("https://inshortsapi.vercel.app/news?category=technology")
+            if response.status_code == 200:
+                data = response.json()
+                if "articles" in data and len(data["articles"]) > 0:
+                    article = data["articles"][0]
+                    title = article.get("title", "No Title")
+                    description = article.get("description", "No Description")
+                    url_link = article.get("url", "")
+                    image_url = article.get("urlToImage", None)
 
-            if response.status_code == 200 and response.content:
-                news_data = response.json()
-                news_list = news_data.get("data", [])
+                    now_ist = datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%d %b %Y | %I:%M %p")
 
-                if news_list:
-                    for news in news_list[:3]:  # Post only top 3 for testing
-                        title = news.get("title")
-                        content = news.get("content")
-                        read_more = news.get("read_more_url") or ""
-                        url_part = f"\n🔗 [Read More]({read_more})" if read_more else ""
+                    text = f"🗞️ <b>{title}</b>\n\n🧾 {description}\n\n🔗 <a href='{url_link}'>Read Full</a>\n🕒 {now_ist}"
 
-                        text = (
-                            f"🗞️ **{title}**\n\n"
-                            f"{content}{url_part}\n\n"
-                            f"🕒 {now} (IST)"
-                        )
-
-                        await app.send_message(
-                            chat_id=NEWS_CHANNEL,
-                            text=text,
-                            disable_web_page_preview=True
-                        )
+                    if image_url:
+                        await app.send_photo(chat_id=NEWS_CHANNEL, photo=image_url, caption=text)
+                    else:
+                        await app.send_message(chat_id=NEWS_CHANNEL, text=text)
                 else:
-                    await app.send_message(chat_id=NEWS_CHANNEL, text="⚠️ No news found.")
-
+                    await app.send_message(chat_id=OWNER_ID, text="⚠️ No articles found.")
             else:
-                await app.send_message(chat_id=NEWS_CHANNEL, text=f"❌ Failed to fetch news.\nStatus: {response.status_code}")
-
+                await app.send_message(chat_id=OWNER_ID, text=f"❌ Failed to fetch news.\nStatus: {response.status_code}")
         except Exception as e:
-            await app.send_message(chat_id=NEWS_CHANNEL, text=f"⚠️ Error occurred:\n{str(e)}")
+            await app.send_message(chat_id=OWNER_ID, text=f"⚠️ Error occurred:\n{e}")
 
-        await asyncio.sleep(120)  # Wait 2 minutes
+        await asyncio.sleep(120)  # fetch every 2 minutes (for testing)
 
-# Start the bot and the news loop
+# Run the bot
 async def main():
     await app.start()
-    asyncio.create_task(fetch_and_send_news())
     print("✅ Bot Started")
-    await idle()
-    await app.stop()
 
-from pyrogram import idle
+    # ✅ Send started message to OWNER
+    try:
+        await app.send_message(
+            OWNER_ID,
+            "✅ <b>Bot started successfully!</b>\nNews updates will be sent every 2 minutes. 📰"
+        )
+    except Exception as e:
+        print(f"Failed to send start message to owner: {e}")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.create_task(fetch_and_send_news())
+    await app.idle()
+
