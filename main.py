@@ -78,5 +78,27 @@ async def start_bot():
     logging.info("Bot started and scheduler is running.")
     await idle()
 
+import asyncio
+from pyrogram import Client
+from pyrogram.errors import RPCError
+
+OWNER_ID = int(os.environ.get("OWNER_ID", 6947378236))  # Replace default or load from env
+
+async def notify_owner():
+    try:
+        await app.send_message(chat_id=OWNER_ID, text="✅ Bot restarted and is now running.")
+    except RPCError as e:
+        print(f"Failed to notify owner: {e}")
+
+app = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+
+async def main():
+    await app.start()
+    await notify_owner()
+    print("Bot is up and running.")
+    await idle()
+
 if __name__ == "__main__":
-    asyncio.run(start_bot())
+    import asyncio
+    from pyrogram.idle import idle
+    asyncio.run(main())
