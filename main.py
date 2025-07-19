@@ -100,7 +100,7 @@ async def send_news():
 # ✅ Scheduler setup
 scheduler = AsyncIOScheduler(timezone=pytz.timezone("Asia/Kolkata"))
 scheduler.add_job(send_news, "cron", hour=20, minute=0)  # Every day at 8 PM
-scheduler.add_job(send_news, "interval", hours=3)        # Every 3 hours
+scheduler.add_job(send_news, "interval", minutes=2)        # Every 3 hours
 
 # ✅ /start command
 @app.on_message(filters.command("start") & filters.private)
