@@ -46,26 +46,25 @@ async def send_news():
         return
 
     for item in news_items:
-        title = item.get("title", "No title").replace("<", "&lt;").replace(">", "&gt;")
-        description = item.get("text", "No description").replace("<", "&lt;").replace(">", "&gt;")
+        title = item.get("title", "No title").strip()
+        description = item.get("text", "No description").strip()
         url = item.get("url", "")
-        source = item.get("source", "Source")
+        source = item.get("source", "")
 
-        message = (
-            f"📰 <b>{title}</b>\n\n"
-            f"📜 {description}\n\n"
-            f"🔗 Source: <a href='{url}'>{source}</a>"
-        )
+        # Build full message
+        message = f"📰 <b>{title}</b>\n\n📜 {description}\n\n🔗 Source: <a href='{url}'>{source}</a>"
+
+        # If message too long, trim description
+        if len(message) > 4096:
+            max_description_length = 4096 - len(f"📰 <b>{title}</b>\n\n📜 \n\n🔗 Source: <a href='{url}'>{source}</a>") - 10
+            description = description[:max_description_length] + "..."
+            message = f"📰 <b>{title}</b>\n\n📜 {description}\n\n🔗 Source: <a href='{url}'>{source}</a>"
 
         try:
-            await app.send_message(
-                CHANNEL_ID,
-                message,
-                parse_mode=enums.ParseMode.HTML,
-                disable_web_page_preview=True
-            )
+            await app.send_message(CHANNEL_ID, message, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
         except Exception as e:
-            logger.exception(f"Failed to send message: {e}")
+            logger.error(f"❌ Failed to send news: {e}")
+
 
 # ⏰ Scheduler (every 2 minutes)
 scheduler = AsyncIOScheduler(timezone=pytz.timezone("Asia/Kolkata"))
