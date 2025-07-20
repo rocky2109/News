@@ -45,10 +45,8 @@ def save_sent_news(sent_urls):
 # ✅ Fetch Gujarati news using World News API
 async def fetch_top_news():
     url = "https://api.worldnewsapi.com/search-news"
-    headers = {
-        "Authorization": f"Bearer {WORLD_NEWS_API_KEY}"
-    }
     params = {
+        "api-key": WORLD_NEWS_API_KEY,  # pass API key here
         "text": "ભારત",
         "language": "gu",
         "number": 10,
@@ -56,7 +54,7 @@ async def fetch_top_news():
     }
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers, params=params) as resp:
+            async with session.get(url, params=params) as resp:
                 if resp.status != 200:
                     error = await resp.json()
                     logger.error(f"Fetch error {resp.status}: {error.get('message')}")
@@ -66,6 +64,7 @@ async def fetch_top_news():
     except Exception as e:
         logger.exception(f"Exception in fetch_top_news: {e}")
         return []
+
 
 
 
