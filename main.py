@@ -10,43 +10,31 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pyrogram import Client, filters, enums, idle
 from pyrogram.types import Message
 
-# ✅ Enhanced logging setup
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# ✅ Environment variables with validation
-try:
-    API_ID = int(os.getenv("API_ID"))
-    API_HASH = os.getenv("API_HASH")
-    BOT_TOKEN = os.getenv("BOT_TOKEN")
-    OWNER_ID = int(os.getenv("OWNER_ID"))
-    CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
-    WORLD_NEWS_API_KEY = os.getenv("WORLD_NEWS_API_KEY") or "5c5e08a86cd44a7381524fdbc469186f"
-    
-    if not all([API_ID, API_HASH, BOT_TOKEN, OWNER_ID, CHANNEL_ID, WORLD_NEWS_API_KEY]):
-        raise ValueError("Missing required environment variables")
-except Exception as e:
-    logger.error(f"Configuration error: {e}")
-    exit(1)
+# Load environment variables
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OWNER_ID = int(os.getenv("OWNER_ID"))
+CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
+WORLD_NEWS_API_KEY = os.getenv("WORLD_NEWS_API_KEY")
 
-# ✅ Pyrogram Client with better error handling
-app = Client(
-    "gujarati-news-bot",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    bot_token=BOT_TOKEN
-)
-
-# ✅ Constants
+# Constants
 EMOJIS = ["📰", "📢", "🗞️", "🧠", "📜", "🌐", "🔔", "✅", "📍", "🕘"]
 HEADERS = ["🧠 Quick Highlights", "🔥 Top News", "📌 Daily Brief"]
 SENT_NEWS_FILE = "sent_news.json"
 TIMEZONE = pytz.timezone("Asia/Kolkata")
 
-# ✅ News cache management
+# Initialize Pyrogram client
+app = Client("news-bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+
+# News cache manager
 class NewsCache:
     def __init__(self):
         self.sent_urls = set()
@@ -69,8 +57,8 @@ class NewsCache:
 
 news_cache = NewsCache()
 
-# ✅ Enhanced news fetcher with error handling
 async def fetch_top_english_news():
+    """Fetch news from World News API"""
     url = "https://api.worldnewsapi.com/search-news"
     params = {
         "text": "India OR Gujarat",
@@ -84,58 +72,51 @@ async def fetch_top_english_news():
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params, timeout=10) as resp:
                 if resp.status != 200:
-                    logger.error(f"News API error: {resp.status}")
+                    logger.error(f"API Error: Status {resp.status}")
                     return []
-                
-                data = await resp.json()
-                return data.get("news", [])
-                
-    except asyncio.TimeoutError:
-        logger.warning("News API request timed out")
-        return []
+                return await resp.json()
     except Exception as e:
-        logger.error(f"News fetch error: {e}", exc_info=True)
+        logger.error(f"Fetch error: {e}")
         return []
 
-# ✅ News formatter with duplicate prevention
 def format_news_item(item):
+    """Format a single news item for Telegram"""
     title = item.get("title", "").strip()
     url = item.get("url", "").strip()
     source = item.get("source", {}).get("name", "Unknown")
     
-    if not title or not url:
+    if not title or not url or url in news_cache.sent_urls:
         return None
         
-    if url in news_cache.sent_urls:
-        return None
-        
-    emoji = random.choice(EMOJIS)
-    return f"{emoji} <a href='{url}'>{title[:80]}</a> ({source})"
+    return f"{random.choice(EMOJIS)} <a href='{url}'>{title[:80]}</a> ({source})"
 
-# ✅ News sender with proper formatting
 async def send_news():
+    """Send news update every 2 minutes"""
     try:
-        news_items = await fetch_top_english_news()
+        # Fetch news
+        news_data = await fetch_top_english_news()
+        news_items = news_data.get("news", [])
+        
         if not news_items:
-            logger.warning("No news items received")
+            logger.warning("No news items available")
             return
 
-        # Process and filter news
-        formatted_items = []
+        # Process news
+        new_items = []
         for item in news_items:
             formatted = format_news_item(item)
             if formatted:
-                formatted_items.append(formatted)
+                new_items.append(formatted)
                 news_cache.add(item["url"])
-                
-        if not formatted_items:
-            logger.info("No new news items to send")
+
+        if not new_items:
+            logger.info("No new items after filtering")
             return
 
         # Prepare message
         message = (
             f"<b>{random.choice(HEADERS)}</b>\n\n" +
-            "\n".join(formatted_items[:5]) +  # Limit to 5 items
+            "\n".join(new_items[:5]) +  # Limit to 5 items
             f"\n\n⏰ {datetime.now(TIMEZONE).strftime('%d %b %Y, %I:%M %p')}"
         )
 
@@ -146,52 +127,39 @@ async def send_news():
             parse_mode=enums.ParseMode.HTML,
             disable_web_page_preview=True
         )
-        logger.info("News sent successfully")
-        
+        logger.info("News update sent successfully")
+
     except Exception as e:
-        logger.error(f"Error in send_news: {e}", exc_info=True)
+        logger.error(f"Error in send_news: {e}")
 
-# ✅ Bot commands
+scheduler = AsyncIOScheduler(timezone=TIMEZONE)
+scheduler.add_job(send_news, "interval", minutes=2)
+
+# Bot commands
 @app.on_message(filters.command("start") & filters.private)
-async def start_command(_, message: Message):
-    await message.reply_text(
-        "👋 Welcome to Gujarati News Bot!\n\n"
-        "🗞️ Get daily news updates automatically every 2 hours.\n"
-        "Use /news to get the latest updates manually."
-    )
+async def start(_, message: Message):
+    await message.reply("✅ News bot is running!")
 
-@app.on_message(filters.command("ping") & filters.user(OWNER_ID))
-async def ping_command(_, message: Message):
-    await message.reply_text("✅ Bot is running smoothly!")
+# Scheduler setup
 
-@app.on_message(filters.command("news") & filters.user(OWNER_ID))
-async def manual_news_command(_, message: Message):
-    await message.reply_text("⏳ Fetching latest news...")
-    await send_news()
 
-# ✅ Bot lifecycle management
-async def run_bot():
+async def main():
     await app.start()
-    logger.info("Bot started successfully")
-    await app.send_message(OWNER_ID, "🚀 Gujarati News Bot is now online!")
+    logger.info("Bot started")
+    await app.send_message(OWNER_ID, "🚀 News bot is now running!")
     
-    # Initialize scheduler
-    scheduler = AsyncIOScheduler(timezone=TIMEZONE)
-    scheduler.add_job(send_news, "interval", hours=2)
     scheduler.start()
+    logger.info("Scheduler started (2-minute intervals)")
     
-    # Keep the bot running
     await idle()
     
-    # Cleanup
     scheduler.shutdown()
     await app.stop()
-    logger.info("Bot stopped gracefully")
 
 if __name__ == "__main__":
     try:
-        asyncio.run(run_bot())
+        asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
     except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
+        logger.error(f"Fatal error: {e}")
