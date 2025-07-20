@@ -63,8 +63,8 @@ async def fetch_top_english_news():
     params = {
         "text": "India OR Gujarat",
         "language": "en",
-        "number": 5,  # Reduced from 10 to 5
-        "sort": "published_desc",
+        "number": 5,
+        "sort": "publish-time",  # Changed from 'published_desc' to 'publish-time'
         "api-key": WORLD_NEWS_API_KEY
     }
 
@@ -77,6 +77,9 @@ async def fetch_top_english_news():
                     return []
                 
                 data = await resp.json()
+                if data.get("status") == "failure":
+                    logger.error(f"API Failure: {data.get('message')}")
+                    return []
                 return data.get("news", [])
                 
     except asyncio.TimeoutError:
@@ -138,16 +141,13 @@ async def send_news():
     except Exception as e:
         logger.error(f"Error in send_news: {e}", exc_info=True)
 
-scheduler = AsyncIOScheduler(timezone=TIMEZONE)
-scheduler.add_job(send_news, "interval", minutes=1)
-
 # Command handlers
 @app.on_message(filters.command("start"))
 async def start_command(client, message: Message):
     try:
         await message.reply_text(
             "📰 Welcome to News Bot!\n\n"
-            "I'll send you news updates every 2 minutes.\n"
+            "I'll send you news updates regularly.\n"
             "Commands:\n"
             "/start - Show this message\n"
             "/news - Get latest news\n"
@@ -159,7 +159,8 @@ async def start_command(client, message: Message):
         logger.error(f"Error in start command: {e}")
 
 # Initialize scheduler
-
+scheduler = AsyncIOScheduler(timezone=TIMEZONE)
+scheduler.add_job(send_news, "interval", minutes=2)
 
 async def run_bot():
     await app.start()
