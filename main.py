@@ -58,12 +58,12 @@ class NewsCache:
 news_cache = NewsCache()
 
 async def fetch_top_english_news():
-    """Fetch news from World News API"""
+    """Fetch news from World News API with proper error handling"""
     url = "https://api.worldnewsapi.com/search-news"
     params = {
         "text": "India OR Gujarat",
         "language": "en",
-        "number": 10,
+        "number": 5,  # Reduced from 10 to 5
         "sort": "published_desc",
         "api-key": WORLD_NEWS_API_KEY
     }
@@ -72,18 +72,28 @@ async def fetch_top_english_news():
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params, timeout=10) as resp:
                 if resp.status != 200:
-                    logger.error(f"API Error: Status {resp.status}")
+                    error_text = await resp.text()
+                    logger.error(f"API Error {resp.status}: {error_text}")
                     return []
-                return await resp.json()
+                
+                data = await resp.json()
+                return data.get("news", [])
+                
+    except asyncio.TimeoutError:
+        logger.warning("News API request timed out")
+        return []
     except Exception as e:
-        logger.error(f"Fetch error: {e}")
+        logger.error(f"News fetch error: {e}", exc_info=True)
         return []
 
 def format_news_item(item):
-    """Format a single news item for Telegram"""
+    """Format a single news item with validation"""
+    if not isinstance(item, dict):
+        return None
+        
     title = item.get("title", "").strip()
     url = item.get("url", "").strip()
-    source = item.get("source", {}).get("name", "Unknown")
+    source = item.get("source", {}).get("name", "Unknown") if isinstance(item.get("source"), dict) else "Unknown"
     
     if not title or not url or url in news_cache.sent_urls:
         return None
@@ -91,17 +101,15 @@ def format_news_item(item):
     return f"{random.choice(EMOJIS)} <a href='{url}'>{title[:80]}</a> ({source})"
 
 async def send_news():
-    """Send news update every 2 minutes"""
+    """Send news update with enhanced error handling"""
     try:
-        # Fetch news
-        news_data = await fetch_top_english_news()
-        news_items = news_data.get("news", [])
+        logger.info("Starting news fetch...")
+        news_items = await fetch_top_english_news()
         
         if not news_items:
             logger.warning("No news items available")
             return
 
-        # Process news
         new_items = []
         for item in news_items:
             formatted = format_news_item(item)
@@ -113,14 +121,12 @@ async def send_news():
             logger.info("No new items after filtering")
             return
 
-        # Prepare message
         message = (
             f"<b>{random.choice(HEADERS)}</b>\n\n" +
-            "\n".join(new_items[:5]) +  # Limit to 5 items
+            "\n".join(new_items) +
             f"\n\n⏰ {datetime.now(TIMEZONE).strftime('%d %b %Y, %I:%M %p')}"
         )
 
-        # Send message
         await app.send_message(
             chat_id=CHANNEL_ID,
             text=message,
@@ -130,50 +136,57 @@ async def send_news():
         logger.info("News update sent successfully")
 
     except Exception as e:
-        logger.error(f"Error in send_news: {e}")
+        logger.error(f"Error in send_news: {e}", exc_info=True)
 
 scheduler = AsyncIOScheduler(timezone=TIMEZONE)
-scheduler.add_job(send_news, "interval", minutes=2)
+scheduler.add_job(send_news, "interval", minutes=1)
 
-# Bot commands
-# Replace your start command handler with this:
+# Command handlers
 @app.on_message(filters.command("start"))
 async def start_command(client, message: Message):
     try:
-        logger.info(f"Received start command from {message.from_user.id}")
         await message.reply_text(
             "📰 Welcome to News Bot!\n\n"
             "I'll send you news updates every 2 minutes.\n"
-            "Commands available:\n"
+            "Commands:\n"
             "/start - Show this message\n"
-            "/news - Get latest news immediately\n"
-            "/ping - Check if bot is alive",
+            "/news - Get latest news\n"
+            "/ping - Check bot status",
             parse_mode=enums.ParseMode.HTML
         )
+        logger.info(f"Responded to start command from {message.from_user.id}")
     except Exception as e:
         logger.error(f"Error in start command: {e}")
-        await message.reply_text("⚠️ Sorry, I encountered an error. Please try again later.")
 
-# Scheduler setup
+# Initialize scheduler
 
 
-async def main():
+async def run_bot():
     await app.start()
-    logger.info("Bot started")
-    await app.send_message(OWNER_ID, "🚀 News bot is now running!")
     
+    # Get bot info
+    me = await app.get_me()
+    logger.info(f"Bot started as @{me.username}")
+    logger.info(f"Bot ID: {me.id}")
+    
+    # Send startup notification
+    await app.send_message(OWNER_ID, "🚀 News Bot is now online!")
+    
+    # Start scheduler
     scheduler.start()
     logger.info("Scheduler started (2-minute intervals)")
     
+    # Keep running
     await idle()
     
+    # Cleanup
     scheduler.shutdown()
     await app.stop()
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        asyncio.run(run_bot())
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
     except Exception as e:
-        logger.error(f"Fatal error: {e}")
+        logger.error(f"Fatal error: {e}", exc_info=True)
