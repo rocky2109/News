@@ -136,9 +136,23 @@ scheduler = AsyncIOScheduler(timezone=TIMEZONE)
 scheduler.add_job(send_news, "interval", minutes=2)
 
 # Bot commands
-@app.on_message(filters.command("start") & filters.private)
-async def start(_, message: Message):
-    await message.reply("✅ News bot is running!")
+# Replace your start command handler with this:
+@app.on_message(filters.command("start"))
+async def start_command(client, message: Message):
+    try:
+        logger.info(f"Received start command from {message.from_user.id}")
+        await message.reply_text(
+            "📰 Welcome to News Bot!\n\n"
+            "I'll send you news updates every 2 minutes.\n"
+            "Commands available:\n"
+            "/start - Show this message\n"
+            "/news - Get latest news immediately\n"
+            "/ping - Check if bot is alive",
+            parse_mode=enums.ParseMode.HTML
+        )
+    except Exception as e:
+        logger.error(f"Error in start command: {e}")
+        await message.reply_text("⚠️ Sorry, I encountered an error. Please try again later.")
 
 # Scheduler setup
 
