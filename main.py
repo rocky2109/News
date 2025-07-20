@@ -169,22 +169,44 @@ scheduler = AsyncIOScheduler(timezone=TIMEZONE)
 scheduler.add_job(send_news, "interval", minutes=2)
 
 # Replace your run_bot() function with:
-async def run_bot():
+async def main():
+    await app.start()
+    logger.info("Bot started")
+    await app.send_message(OWNER_ID, "✅ Bot is running with scheduler.")
+    
+    # Start scheduler
+    scheduler.add_job(send_news, "interval", minutes=2)
+    scheduler.start()
+    logger.info("Scheduler started")
+    
+    # Create a permanent task to keep the bot running
     try:
-        await app.start()
-        me = await app.get_me()
-        logger.info(f"Bot started as @{me.username}")
-        
-        scheduler.start()
-        logger.info("Scheduler started")
-        
-        # Create an event to keep the bot running
-        stop_event = asyncio.Event()
-        await stop_event.wait()
-        
+        while True:
+            await asyncio.sleep(3600)  # Sleep for 1 hour
     except (KeyboardInterrupt, SystemExit):
-        logger.info("Shutdown signal received")
-    finally:
-        # Shutdown in correct order
-        scheduler.shutdown(wait=False)
+        logger.info("Shutting down...")
+        scheduler.shutdown()
         await app.stop()
+        logger.info("Bot stopped")
+
+if __name__ == "__main__":
+    # Configure asyncio to use uvloop if available (faster)
+    try:
+        import uvloop
+        uvloop.install()
+        logger.info("Using uvloop for better performance")
+    except ImportError:
+        pass
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        logger.info("Received keyboard interrupt, shutting down")
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+    finally:
+        loop.close()
+        logger.info("Event loop closed")
