@@ -44,74 +44,44 @@ def save_sent_news(sent_urls):
 
 # ✅ Fetch Gujarati news using World News API
 async def fetch_top_news():
-    url = "https://api.worldnewsapi.com/search-news"
-    params = {
-        "api-key": WORLD_NEWS_API_KEY,  # pass API key here
-        "text": "ભારત",
-        "language": "gu",
-        "number": 10,
-        "sort": "published_desc"
-    }
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params) as resp:
-                if resp.status != 200:
-                    error = await resp.json()
-                    logger.error(f"Fetch error {resp.status}: {error.get('message')}")
-                    return []
-                data = await resp.json()
-                return data.get("news", [])
-    except Exception as e:
-        logger.exception(f"Exception in fetch_top_news: {e}")
-        return []
+    url = f"https://api.worldnewsapi.com/search-news?text=ભારત&number=5&language=gu&api-key={WORLD_NEWS_API_KEY}"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                logger.error(f"Failed to fetch news. Status code: {resp.status}")
+                return []
+            data = await resp.json()
+            return data.get("news", [])
 
-
-
-
-# ✅ Send top Gujarati news
+# Send news to the channel
 async def send_news():
-    sent_urls = load_sent_news()
     news_items = await fetch_top_news()
-
     if not news_items:
-        logger.warning("No news to send.")
+        logger.warning("No news found.")
         return
 
-    count = 0
     for item in news_items:
-        url = item.get("url")
-        if url in sent_urls:
-            continue  # Skip duplicates
-
         title = item.get("title", "No title").strip()
-        desc = item.get("text", "No description").strip()
-        source = item.get("source", "🌐 Source")
+        description = item.get("text", "No description").strip()
+        url = item.get("url", "")
+        source = item.get("source", "")
 
-        emoji = random.choice(EMOJIS)
-        message = f"{emoji} <b>{title}</b>\n\n📜 {desc}\n\n🔗 <a href='{url}'>{source}</a>"
+        # Combine message
+        message = f"📰 <b>{title}</b>\n\n📜 {description}\n\n🔗 Source: <a href='{url}'>{source}</a>"
 
-        # Trim if too long
+        # Ensure message doesn't exceed Telegram limit
         if len(message) > 4096:
-            max_len = 4096 - len(f"{emoji} <b>{title}</b>\n\n📜 \n\n🔗 <a href='{url}'>{source}</a>") - 10
-            desc = desc[:max_len] + "..."
-            message = f"{emoji} <b>{title}</b>\n\n📜 {desc}\n\n🔗 <a href='{url}'>{source}</a>"
+            description = description[:4096 - len(title) - len(source) - 100] + "..."
+            message = f"📰 <b>{title}</b>\n\n📜 {description}\n\n🔗 Source: <a href='{url}'>{source}</a>"
 
         try:
             await app.send_message(CHANNEL_ID, message, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
-            sent_urls.add(url)
-            count += 1
         except Exception as e:
-            logger.error(f"Send error: {e}")
+            logger.error(f"❌ Failed to send news: {e}")
 
-        if count >= 5:
-            break  # Limit to 5 news per job
-
-    save_sent_news(sent_urls)
-
-# ✅ Scheduler setup
+# Scheduler (every 2 minutes)
 scheduler = AsyncIOScheduler(timezone=pytz.timezone("Asia/Kolkata"))
-scheduler.add_job(send_news, "cron", hour=20, minute=0)  # Every day at 8 PM
-scheduler.add_job(send_news, "interval", minutes=2)        # Every 3 hours
+scheduler.add_job(send_news, "interval", minutes=2)
 
 # ✅ /start command
 @app.on_message(filters.command("start") & filters.private)
