@@ -20,7 +20,7 @@ API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID"))
 CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
-WORLD_NEWS_API_KEY = os.getenv("e5cc1447cb6548eb8edb4771bc145fd2")
+WORLD_NEWS_API_KEY = os.getenv("5c5e08a86cd44a7381524fdbc469186f")
 
 # ✅ Pyrogram Client
 app = Client("gujarati-news-bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
