@@ -164,9 +164,13 @@ async def start_command(client, message: Message):
     except Exception as e:
         logger.error(f"Error in start command: {e}")
 
-# Initialize scheduler
-scheduler = AsyncIOScheduler(timezone=TIMEZONE)
-scheduler.add_job(send_news, "interval", minutes=2)
+from pytz import timezone
+
+# Define the timezone at the top level of your script
+INDIAN_TZ = timezone("Asia/Kolkata")  # This creates a timezone object
+
+# Then use it in your scheduler initialization
+scheduler = AsyncIOScheduler(timezone=INDIAN_TZ)
 
 # Replace your run_bot() function with:
 async def main():
