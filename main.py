@@ -118,6 +118,8 @@ async def send_news():
     except Exception as e:
         logger.error(f"❌ Failed to send news: {e}")
 
+scheduler = AsyncIOScheduler(timezone=pytz.timezone("Asia/Kolkata"))
+scheduler.add_job(send_news, "interval", minutes=2)
 
 # ✅ /start command
 @app.on_message(filters.command("start") & filters.private)
