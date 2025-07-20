@@ -57,26 +57,18 @@ from pyrogram import enums
 
 logger = logging.getLogger(__name__)
 
-# Languages to pick from
-LANGUAGES = ["en", "hi", "gu"]
-# Emojis for headlines
+
+logger = logging.getLogger(__name__)
+
+
 EMOJIS = ["📰", "🗞️", "📢", "🌍", "⚡", "🔔", "📣", "🚨"]
+HEADERS = ["🧠 Quick Highlights", "🔥 Top News", "📌 Daily Brief"]
 
-# HEADERS NOT REQUIRED for this API — uses query param only
-async def fetch_top_news():
-    selected_language = random.choice(LANGUAGES)
-    logger.info(f"🌐 Fetching news in language: {selected_language.upper()}")
-
-    query_text = {
-        "en": "India",
-        "hi": "भारत",
-        "gu": "ભારત"
-    }.get(selected_language, "India")
-
+async def fetch_top_english_news():
     url = "https://api.worldnewsapi.com/search-news"
     params = {
-        "text": query_text,
-        "language": selected_language,
+        "text": "India",
+        "language": "en",
         "number": 5,
         "sort": "published_desc",
         "api-key": WORLD_NEWS_API_KEY
@@ -95,16 +87,16 @@ async def fetch_top_news():
         return []
 
 async def send_news():
-    news_items = await fetch_top_news()
+    news_items = await fetch_top_english_news()
     if not news_items:
         logger.warning("No news found.")
         return
 
     highlights = []
-    for item in news_items[:5]:
+    for item in news_items:
         title = item.get("title", "").strip()
         url = item.get("url", "").strip()
-        if title:
+        if title and url:
             emoji = random.choice(EMOJIS)
             highlights.append(f"{emoji} <a href='{url}'>{title[:80]}</a>")
 
@@ -112,22 +104,20 @@ async def send_news():
         logger.warning("No valid headlines.")
         return
 
-    header = random.choice(["🧠 Quick Highlights", "🔥 Top News", "📌 Daily Brief"])
-    message = f"<b>{header}</b>\n\n" + "\n".join(highlights)
-
-    # Ensure message is under Telegram's limit
-    if len(message) > 2000:
-        message = message[:1990] + "..."
+    message = f"<b>{random.choice(HEADERS)}</b>\n\n" + "\n".join(highlights)
+    if len(message) > 4000:
+        message = message[:3990] + "..."
 
     try:
         await app.send_message(
-            CHANNEL_ID,
-            message,
+            chat_id=CHANNEL_ID,
+            text=message,
             parse_mode=enums.ParseMode.HTML,
             disable_web_page_preview=True
         )
     except Exception as e:
         logger.error(f"❌ Failed to send news: {e}")
+
 
 # ✅ /start command
 @app.on_message(filters.command("start") & filters.private)
