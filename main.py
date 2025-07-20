@@ -44,14 +44,22 @@ def save_sent_news(sent_urls):
 
 # ✅ Fetch Gujarati news using World News API
 async def fetch_top_news():
-    url = f"https://api.worldnewsapi.com/search-news?text=ભારત&number=5&language=gu&api-key={WORLD_NEWS_API_KEY}"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            if resp.status != 200:
-                logger.error(f"Failed to fetch news. Status code: {resp.status}")
-                return []
-            data = await resp.json()
-            return data.get("news", [])
+    url = (
+        f"https://api.worldnewsapi.com/search-news"
+        f"?text=ભારત&number=5&language=gu&sort=published_desc&api-key={WORLD_NEWS_API_KEY}"
+    )
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    logger.error(f"❌ Failed to fetch news. Status code: {resp.status}")
+                    return []
+                data = await resp.json()
+                return data.get("news", [])
+    except Exception as e:
+        logger.exception("⚠️ Exception during news fetch:")
+        return []
+
 
 # Send news to the channel
 async def send_news():
