@@ -175,7 +175,11 @@ async def main():
     await app.send_message(OWNER_ID, "✅ Bot is running with scheduler.")
     
     # Start scheduler
-    scheduler.add_job(send_news, "interval", minutes=2)
+    # For precise times (9 AM, 12 PM, 3 PM, etc. in Indian timezone)
+    scheduler.add_job(send_news, 'cron', hour='9,12,15,18,21', timezone=INDIAN_TZ)
+
+# For every 3 hours (as a backup, in case precise jobs miss)
+    scheduler.add_job(send_news, 'interval', hours=3, timezone=INDIAN_TZ)
     scheduler.start()
     logger.info("Scheduler started")
     
