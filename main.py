@@ -51,7 +51,11 @@ class NewsCache:
         with open(SENT_NEWS_FILE, "w") as f:
             json.dump(list(self.sent_urls), f)
     
+# In your NewsCache class, modify the add() method:
     def add(self, url):
+    # Keep only the 100 most recent URLs to prevent over-filtering
+        if len(self.sent_urls) >= 100:
+            self.sent_urls = set(list(self.sent_urls)[-100:])
         self.sent_urls.add(url)
         self.save()
 
@@ -63,9 +67,11 @@ async def fetch_top_english_news():
     params = {
         "text": "India OR Gujarat",
         "language": "en",
-        "number": 5,
+        "number": 10,
         "sort": "publish-time",  # Changed from 'published_desc' to 'publish-time'
-        "api-key": WORLD_NEWS_API_KEY
+        "api-key": WORLD_NEWS_API_KEY,
+        "earliest-publish-date": datetime.now(TIMEZONE).strftime("%Y-%m-%d")  # Get only today's news
+    
     }
 
     try:
@@ -162,32 +168,23 @@ async def start_command(client, message: Message):
 scheduler = AsyncIOScheduler(timezone=TIMEZONE)
 scheduler.add_job(send_news, "interval", minutes=2)
 
+# Replace your run_bot() function with:
 async def run_bot():
-    await app.start()
-    
-    # Get bot info
-    me = await app.get_me()
-    logger.info(f"Bot started as @{me.username}")
-    logger.info(f"Bot ID: {me.id}")
-    
-    # Send startup notification
-    await app.send_message(OWNER_ID, "🚀 News Bot is now online!")
-    
-    # Start scheduler
-    scheduler.start()
-    logger.info("Scheduler started (2-minute intervals)")
-    
-    # Keep running
-    await idle()
-    
-    # Cleanup
-    scheduler.shutdown()
-    await app.stop()
-
-if __name__ == "__main__":
     try:
-        asyncio.run(run_bot())
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
+        await app.start()
+        me = await app.get_me()
+        logger.info(f"Bot started as @{me.username}")
+        
+        scheduler.start()
+        logger.info("Scheduler started")
+        
+        # Create an event to keep the bot running
+        stop_event = asyncio.Event()
+        await stop_event.wait()
+        
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Shutdown signal received")
+    finally:
+        # Shutdown in correct order
+        scheduler.shutdown(wait=False)
+        await app.stop()
