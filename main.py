@@ -43,14 +43,32 @@ def save_sent_news(sent_urls):
         json.dump(list(sent_urls), f)
 
 # ✅ Fetch Gujarati news using World News API
+import random
+import aiohttp
+import logging
+
+logger = logging.getLogger(__name__)
+
+LANGUAGES = ["en", "hi", "gu"]
+
 async def fetch_top_news():
-    url = (
-        f"https://api.worldnewsapi.com/search-news"
-        f"?text=ભારત&number=5&language=gu&sort=published_desc&api-key={WORLD_NEWS_API_KEY}"
-    )
+    selected_language = random.choice(LANGUAGES)
+    logger.info(f"🌐 Fetching news in language: {selected_language.upper()}")
+
+    url = "https://api.worldnewsapi.com/search-news"
+    headers = {
+        "Authorization": f"Bearer {WORLD_NEWS_API_KEY}"  # Replace with your actual key
+    }
+    params = {
+        "text": "भारत" if selected_language == "hi" else "ભારત" if selected_language == "gu" else "India",
+        "language": selected_language,
+        "number": 5,
+        "sort": "published_desc"
+    }
+
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
+            async with session.get(url, headers=headers, params=params) as resp:
                 if resp.status != 200:
                     logger.error(f"❌ Failed to fetch news. Status code: {resp.status}")
                     return []
@@ -62,30 +80,45 @@ async def fetch_top_news():
 
 
 # Send news to the channel
+import random
+from pyrogram import enums
+
+EMOJIS = ["📰", "🗞️", "📢", "🌍", "⚡", "🔔", "📣", "🚨"]
+
 async def send_news():
     news_items = await fetch_top_news()
     if not news_items:
         logger.warning("No news found.")
         return
 
-    for item in news_items:
-        title = item.get("title", "No title").strip()
-        description = item.get("text", "No description").strip()
-        url = item.get("url", "")
-        source = item.get("source", "")
+    highlights = []
+    for item in news_items[:5]:  # limit to top 5
+        title = item.get("title", "").strip()
+        url = item.get("url", "").strip()
+        if title:
+            emoji = random.choice(EMOJIS)
+            highlights.append(f"{emoji} <a href='{url}'>{title[:80]}</a>")  # max 80 chars per title
 
-        # Combine message
-        message = f"📰 <b>{title}</b>\n\n📜 {description}\n\n🔗 Source: <a href='{url}'>{source}</a>"
+    if not highlights:
+        logger.warning("No valid headlines.")
+        return
 
-        # Ensure message doesn't exceed Telegram limit
-        if len(message) > 4096:
-            description = description[:4096 - len(title) - len(source) - 100] + "..."
-            message = f"📰 <b>{title}</b>\n\n📜 {description}\n\n🔗 Source: <a href='{url}'>{source}</a>"
+    header = random.choice(["🧠 Quick Highlights", "🔥 Top News", "📌 Daily Brief"])
+    message = f"<b>{header}</b>\n\n" + "\n".join(highlights)
 
-        try:
-            await app.send_message(CHANNEL_ID, message, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
-        except Exception as e:
-            logger.error(f"❌ Failed to send news: {e}")
+    # Ensure total message is short
+    if len(message) > 2000:
+        message = message[:1990] + "..."
+
+    try:
+        await app.send_message(
+            CHANNEL_ID,
+            message,
+            parse_mode=enums.ParseMode.HTML,
+            disable_web_page_preview=True
+        )
+    except Exception as e:
+        logger.error(f"❌ Failed to send news: {e}")
 
 # Scheduler (every 2 minutes)
 scheduler = AsyncIOScheduler(timezone=pytz.timezone("Asia/Kolkata"))
